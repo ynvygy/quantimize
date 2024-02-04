@@ -51,9 +51,16 @@ export class Dapp extends React.Component {
       txBeingSent: undefined,
       transactionError: undefined,
       networkError: undefined,
+      textareaValue: '',
+      checkboxValue: false,
+      chestResult: undefined,
+      activeTab: 'tab1',
     };
 
     this.state = this.initialState;
+    this.handleTextareaChange = this.handleTextareaChange.bind(this);
+    this.handleCheckboxChange = this.handleCheckboxChange.bind(this);
+    this.handleTabClick = this.handleTabClick.bind(this)
   }
 
   render() {
@@ -80,82 +87,69 @@ export class Dapp extends React.Component {
       );
     }
 
-    // If the token data or the user's balance hasn't loaded yet, we show
-    // a loading component.
-    if (!this.state.tokenData || !this.state.balance) {
-      return <Loading />;
-    }
-
     // If everything is loaded, we render the application.
     return (
-      <div className="container p-4">
-        <div className="row">
-          <div className="col-12">
-            <h1>
-              {this.state.tokenData.name} ({this.state.tokenData.symbol})
-            </h1>
-            <p>
-              Welcome <b>{this.state.selectedAddress}</b>, you have{" "}
-              <b>
-                {this.state.balance.toString()} {this.state.tokenData.symbol}
-              </b>
-              .
-            </p>
-          </div>
+      <div className="row">
+        <div className="col-md-3 container p-3">
+          <p>Gaming</p>
+          <button onClick={() => this.handleTabClick('tab1')} className={this.activeTab === 'tab1' ? 'active' : ''}>
+            Chest Item
+          </button>
+          <button onClick={() => this.handleTabClick('tab2')} className={this.activeTab === 'tab2' ? 'active' : ''}>
+            Hero (not implemented)
+          </button>
+          <p>Hospitals</p>
+          <button onClick={() => this.handleTabClick('tab3')} className={this.activeTab === 'tab3' ? 'active' : ''}>
+            Shifts (not implemented)
+          </button>
+          {/* Add more buttons as needed */}
         </div>
 
-        <hr />
+        <div className="col-md-9 container p-4">
+          <div className="row">
+            <div className="col-12">
+            <form onSubmit={this.handleSubmit}>
+              <div className="form-group">
+                <label htmlFor="itemsOdds">Items Odds</label>
+                <textarea
+                  id="itemsOdds"
+                  className="form-control"
+                  rows="4"
+                  value={this.state.textareaValue}
+                  onChange={this.handleTextareaChange}
+                />
+              </div>
 
-        <div className="row">
-          <div className="col-12">
-            {/* 
-              Sending a transaction isn't an immediate action. You have to wait
-              for it to be mined.
-              If we are waiting for one, we show a message here.
-            */}
-            {this.state.txBeingSent && (
-              <WaitingForTransactionMessage txHash={this.state.txBeingSent} />
-            )}
+              <br />
 
-            {/* 
-              Sending a transaction can fail in multiple ways. 
-              If that happened, we show a message here.
-            */}
-            {this.state.transactionError && (
-              <TransactionErrorMessage
-                message={this._getRpcErrorMessage(this.state.transactionError)}
-                dismiss={() => this._dismissTransactionError()}
-              />
-            )}
+              <div className="form-check">
+                <input
+                  type="checkbox"
+                  className="form-check-input"
+                  id="multipleItemsCheckbox"
+                  checked={this.state.checkboxValue}
+                  onChange={this.handleCheckboxChange}
+                />
+                <label className="form-check-label" htmlFor="multipleItemsCheckbox">
+                  Multiple Items
+                </label>
+              </div>
+
+              <br />
+
+              <button type="submit">Submit</button>
+            </form>
+            </div>
           </div>
-        </div>
-
-        <div className="row">
-          <div className="col-12">
-            {/*
-              If the user has no tokens, we don't show the Transfer form
-            */}
-            {this.state.balance.eq(0) && (
-              <NoTokensMessage selectedAddress={this.state.selectedAddress} />
-            )}
-
-            {/*
-              This component displays a form that the user can use to send a 
-              transaction and transfer some tokens.
-              The component doesn't have logic, it just calls the transferTokens
-              callback.
-            */}
-            {this.state.balance.gt(0) && (
-              <Transfer
-                transferTokens={(to, amount) =>
-                  this._transferTokens(to, amount)
-                }
-                tokenSymbol={this.state.tokenData.symbol}
-              />
-            )}
-          </div>
+          {this.state.chestResult && (
+            <div>
+              <h2>Result:</h2>
+              <p>{this.state.chestResult}</p>
+            </div>
+          )}
         </div>
       </div>
+
     );
   }
 
@@ -164,6 +158,56 @@ export class Dapp extends React.Component {
     // gets unmounted
     this._stopPollingData();
   }
+
+  // Event handler for text area change
+  handleTextareaChange (event) {
+    this.setState({
+      textareaValue: event.target.value,
+    });
+  };
+
+  handleTabClick (tab) {
+    this.setState({
+      activeTab: tab,
+    });
+  };
+
+  // Event handler for checkbox change
+  handleCheckboxChange = (event) => {
+    this.setState({
+      checkboxValue: event.target.checked,
+    });
+    console.log(this.state)
+  };
+
+  // Submit handler (you can customize this according to your needs)
+  handleSubmit = (event) => {
+    event.preventDefault();
+    // Do something with the form data, e.g., send it to a server
+    const lines = this.state.textareaValue.split('\n');
+    const items = [];
+    const values = [];
+
+    lines.forEach((line) => {
+      const [item, value] = line.split(' ');
+      if (item && value) {
+        items.push(item);
+        values.push(value*100);
+      }
+    });
+
+    // Do something with the processed data
+    console.log('Items:', items);
+    console.log('Values:', values);
+
+    this._token.getChestItems(items, values, this.state.checkboxValue)
+    .then((result) => {
+      console.log('Smart contract response:', result);
+      this.setState({
+        chestResult: result.join(','),
+      });
+    })
+  };
 
   async _connectWallet() {
     // This method is run when the user clicks the Connect. It connects the
@@ -203,17 +247,10 @@ export class Dapp extends React.Component {
       selectedAddress: userAddress,
     });
 
-    // Then, we initialize ethers, fetch the token's data, and start polling
-    // for the user's balance.
-
-    // Fetching the token data and the user's balance are specific to this
-    // sample project, but you can reuse the same initialization pattern.
-    this._initializeEthers();
-    this._getTokenData();
-    this._startPollingData();
+    this._initializeEthers()
   }
 
-  async _initializeEthers() {
+  _initializeEthers() {
     // We first initialize ethers by creating a provider using window.ethereum
     this._provider = new ethers.providers.Web3Provider(window.ethereum);
 
@@ -254,10 +291,6 @@ export class Dapp extends React.Component {
     this.setState({ tokenData: { name, symbol } });
   }
 
-  async _updateBalance() {
-    const balance = await this._token.balanceOf(this.state.selectedAddress);
-    this.setState({ balance });
-  }
 
   // This method sends an ethereum transaction to transfer tokens.
   // While this action is specific to this application, it illustrates how to
